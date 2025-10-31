@@ -1,0 +1,41 @@
+name: Generate release notes
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  draft-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Generate changelog (simple)
+        id: changelog
+        run: |
+          git fetch --tags
+          TAG=${GITHUB_REF#refs/tags/}
+          PREV_TAG=$(git tag --sort=-creatordate | grep -v "^$TAG$" | head -n1 || true)
+          if [ -z "$PREV_TAG" ]; then
+            git log --pretty=format:'- %s (%h)' > CHANGELOG.md
+          else
+            git log $PREV_TAG..$TAG --pretty=format:'- %s (%h)' > CHANGELOG.md
+          fi
+          echo "::set-output name=changelog::$(sed -n '1,200p' CHANGELOG.md | sed ':a;N;$!ba;s/\n/\\n/g')"
+
+      - name: Create GitHub release (draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          body: |
+            Automated release notes:
+
+            ${{ steps.changelog.outputs.changelog }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
