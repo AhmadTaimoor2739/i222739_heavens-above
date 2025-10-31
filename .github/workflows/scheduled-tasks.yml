@@ -1,0 +1,42 @@
+name: Scheduled tasks - refresh data
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # runs daily at 03:00 UTC (adjust cron to your desired schedule)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install
+        run: npm ci
+
+      - name: Run data refresh
+        run: |
+          # If repo has a 'run' script or a custom script, run it:
+          if npm run | grep -q "start"; then
+            npm run start --silent
+          elif [ -f run.js ]; then
+            node run.js
+          else
+            echo "No known data refresh script found."
+          fi
+
+      - name: Upload output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-output
+          path: public/data || public || ./output || .
