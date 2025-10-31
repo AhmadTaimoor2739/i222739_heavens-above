@@ -1,0 +1,58 @@
+name: Dependency updates (weekly)
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'   # weekly on Monday 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+
+      - name: Install
+        run: npm ci
+
+      - name: Check for outdated deps
+        id: outdated
+        run: |
+          npm outdated --json > outdated.json || true
+          cat outdated.json
+          echo "::set-output name=changed::$( [ -s outdated.json ] && echo true || echo false )"
+
+      - name: Create branch & update deps
+        if: steps.outdated.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b chore/deps-update-$(date +%Y%m%d-%H%M%S)
+          node -e "const fs=require('fs'); const p=require('./package.json'); Object.keys(p.dependencies||{}).forEach(d=>{}); console.log('noop')"
+          # use npm update for minor/patch upgrades (be cautious with major)
+          npm update
+          git add package.json package-lock.json || true
+          git commit -m "chore: update dependencies (automated)" || echo "No changes"
+          git push --set-upstream origin HEAD
+
+      - name: Create PR if branch pushed
+        if: steps.outdated.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: automated dependency updates"
+          title: "chore(deps): automated weekly dependency update"
+          body: |
+            This PR was created automatically by the weekly dependency update workflow.
+            Please run CI and review compatibility before merging.
+          base: main
+          branch: ${{ github.head_ref }}
