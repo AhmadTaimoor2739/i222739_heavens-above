@@ -1,0 +1,68 @@
+name: Deploy (build → test → deploy)
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Run tests
+        run: |
+          if npm run | grep -q "test"; then
+            npm test -- --ci
+          else
+            echo "No tests defined; skipping."
+          fi
+
+      - name: Prepare public (if script present)
+        run: |
+          if npm run | grep -q "build"; then
+            npm run build
+          else
+            echo "No build script; assuming public/ already present."
+          fi
+
+      - name: Upload site artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site
+          path: public
+
+  deploy-pages:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build-test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download site artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: site
+          path: public
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          publish_dir: ./public
+          # The action will use GITHUB_TOKEN automatically for a public repo.
