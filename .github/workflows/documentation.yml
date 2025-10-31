@@ -1,6 +1,7 @@
 name: Docs → GitHub Pages
 
 on:
+  workflow_dispatch:
   push:
     paths:
       - 'docs/**'

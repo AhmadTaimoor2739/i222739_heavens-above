@@ -1,6 +1,7 @@
 name: Code Review & Security
 
 on:
+  workflow_dispatch:
   pull_request:
     types: [opened, synchronize, reopened]
 
